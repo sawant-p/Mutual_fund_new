@@ -303,7 +303,7 @@ if section == "Prediction":
         def highlight_change(val):
             color = 'green' if val > 0 else 'red' if val < 0 else 'black'
             return f'color: {color}'
-        st.dataframe(summary_df.style.applymap(highlight_change, subset=['% Change']))
+        st.dataframe(summary_df.style.map(highlight_change, subset=['% Change']))
 
         # Top 3 Summary
         with st.expander("🏆 Top 3 Funds Summary"):
