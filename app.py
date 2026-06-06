@@ -13,7 +13,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 st.set_page_config(page_title="Mutual Fund Dashboard", layout="wide")
-st.title("📈 Mutual Fund NAV Prediction & Analysis")
+st.title(" Mutual Fund NAV Prediction & Analysis")
 
 # ------------------------
 # Top 25 Funds
@@ -198,10 +198,12 @@ if section == "Prediction":
                     X_train, y_train = np.array(X_train), np.array(y_train)
                     X_train = np.reshape(X_train, (X_train.shape[0], X_train.shape[1], 1))
 
-                    lstm_model = Sequential()
-                    lstm_model.add(LSTM(50, return_sequences=True, input_shape=(X_train.shape[1],1)))
-                    lstm_model.add(LSTM(50))
-                    lstm_model.add(Dense(1))
+                    import uuid as _uuid
+                    _uid = _uuid.uuid4().hex[:8]
+                    lstm_model = Sequential(name=f'lstm_model_{_uid}')
+                    lstm_model.add(LSTM(50, return_sequences=True, input_shape=(X_train.shape[1],1), name=f'lstm1_{_uid}'))
+                    lstm_model.add(LSTM(50, name=f'lstm2_{_uid}'))
+                    lstm_model.add(Dense(1, name=f'dense_{_uid}'))
                     lstm_model.compile(optimizer='adam', loss='mean_squared_error')
                     lstm_model.fit(X_train, y_train, epochs=10, batch_size=8, verbose=0)
 
@@ -243,11 +245,11 @@ if section == "Prediction":
 
         # Overall Comparison
         if show_overall_comparison and not overall_comparison.empty:
-            st.markdown("## 📊 Overall Comparison of Predicted NAVs")
+            st.markdown("##  Overall Comparison of Predicted NAVs")
             st.line_chart(overall_comparison)
 
         # Summary Table
-        st.markdown("## 🧾 Prediction Summary Table")
+        st.markdown("##  Prediction Summary Table")
         summary_df = pd.DataFrame(summary_rows, columns=["Fund","Algorithm","Predicted NAV","Change","% Change"])
         def highlight_change(val):
             color = 'green' if val > 0 else 'red' if val < 0 else 'black'
@@ -389,11 +391,45 @@ if section == "Fund Analysis & Stats":
                 }))
 
     elif analysis_feature == "Fund Summary Generator":
+        st.markdown("### 📋 Fund Summary Report")
         for f in selected_analysis_funds:
             df = nav_data[f]
             last_nav = df['NAV'].iloc[-1]
-            returns = df['NAV'].pct_change().iloc[-30:].mean()*100
-            manager = scheme_details.get(f, {}).get("Fund Manager", "N/A")
-            category = scheme_details.get(f, {}).get("Category", "N/A")
-            st.markdown(f"**{f} Summary:** Last NAV: {round(last_nav,2)}, Avg 30-day Return: {round(returns,2)}%, Fund Manager: {manager}, Category: {category}")
+            first_nav = df['NAV'].iloc[0]
+            returns_30d = df['NAV'].pct_change().iloc[-30:].mean() * 100
+            returns_1y = ((df['NAV'].iloc[-1] / df['NAV'].iloc[-252]) - 1) * 100 if len(df) >= 252 else None
+            all_time_return = ((last_nav / first_nav) - 1) * 100
+            volatility = df['NAV'].pct_change().std() * 100
+            max_nav = df['NAV'].max()
+            min_nav = df['NAV'].min()
+            details = scheme_details.get(f, {})
+            fund_code = details.get("Fund Code", fund_options.get(f, "N/A"))
+            launch_date = details.get("Launch Date", "N/A")
+            scheme_name = details.get("Fund Name", f)
 
+            with st.expander(f"📁 {f}", expanded=True):
+                col1, col2, col3 = st.columns(3)
+                col1.metric("Last NAV (₹)", round(last_nav, 2))
+                col2.metric("Avg 30-Day Daily Return", f"{round(returns_30d, 4)}%")
+                if returns_1y is not None:
+                    col3.metric("1-Year Return", f"{round(returns_1y, 2)}%")
+                else:
+                    col3.metric("All-Time Return", f"{round(all_time_return, 2)}%")
+
+                col4, col5, col6 = st.columns(3)
+                col4.metric("Volatility (Std Dev)", f"{round(volatility, 4)}%")
+                col5.metric("52W High NAV", round(df['NAV'].iloc[-252:].max() if len(df)>=252 else max_nav, 2))
+                col6.metric("52W Low NAV", round(df['NAV'].iloc[-252:].min() if len(df)>=252 else min_nav, 2))
+
+                st.markdown(
+                    f"| Field | Value |\n"
+                    f"|---|---|\n"
+                    f"| Scheme Name | {scheme_name} |\n"
+                    f"| Fund Code | {fund_code} |\n"
+                    f"| Launch Date | {launch_date} |\n"
+                    f"| All-Time Return | {round(all_time_return, 2)}% |\n"
+                    f"| All-Time High NAV | {round(max_nav, 2)} |\n"
+                    f"| All-Time Low NAV | {round(min_nav, 2)} |\n"
+                    f"| Total Data Points | {len(df)} days |"
+                )
+                st.caption("⚠️ Fund Manager & Expense Ratio are not in the public MFApi. Visit the AMC website for those details.")
